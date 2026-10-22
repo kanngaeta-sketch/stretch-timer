@@ -278,6 +278,11 @@
         </div>
     </div>
 
+    <!-- 確実に画面スリープを防ぐための隠しビデオ要素 (1x1ピクセル) -->
+    <video id="keep-awake-video" width="1" height="1" autoplay loop muted playsinline style="display:none; position:absolute; pointer-events:none;">
+        <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc29tYXZjMSFhAAAAAZnJlZQAABzxtZGF0AAACrQYF//+EAAEI" type="video/mp4">
+    </video>
+
     <script>
         // デフォルトのメニューデータ
         let defaultPoses = [
@@ -298,7 +303,6 @@
         let timeLeft = 0;
         let timerId = null;
         let isPaused = false;
-        let wakeLock = null;
 
         // 初期化
         window.onload = function() {
@@ -366,37 +370,24 @@
             }
         }
 
-        // スリープ防止（Wake Lock API）の有効化
-        async function requestWakeLock() {
-            if ('wakeLock' in navigator) {
-                try {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    document.getElementById("wakelock-status").innerText = "💡 画面スリープ防止：有効";
-                    
-                    // ページがバックグラウンドに隠れたりした場合のイベント
-                    wakeLock.addEventListener('release', () => {
-                        document.getElementById("wakelock-status").innerText = "";
-                    });
-                } catch (err) {
-                    console.log(`${err.name}, ${err.message}`);
-                }
-            }
+        // スリープ防止（ビデオ再生方式）
+        function startKeepAwake() {
+            const video = document.getElementById("keep-awake-video");
+            video.play().then(() => {
+                document.getElementById("wakelock-status").innerText = "💡 スリープ防止（常時点灯）：有効";
+            }).catch(err => {
+                console.log("Video play failed", err);
+                document.getElementById("wakelock-status").innerText = "";
+            });
         }
 
-        // スリープ防止の解除
-        async function releaseWakeLock() {
-            if (wakeLock !== null) {
-                try {
-                    await wakeLock.release();
-                    wakeLock = null;
-                } catch (err) {
-                    console.log(`${err.name}, ${err.message}`);
-                }
-            }
+        function stopKeepAwake() {
+            const video = document.getElementById("keep-awake-video");
+            video.pause();
             document.getElementById("wakelock-status").innerText = "";
         }
 
-        async function startWorkout() {
+        function startWorkout() {
             // 入力値の取得
             totalRounds = parseInt(document.getElementById("rounds-input").value) || 1;
             intervalTime = parseInt(document.getElementById("interval-input").value) || 0;
@@ -431,8 +422,8 @@
             setupCurrentStep();
             runTimer();
 
-            // スリープ防止をリクエスト
-            await requestWakeLock();
+            // スリープ防止を有効化
+            startKeepAwake();
         }
 
         function setupCurrentStep() {
@@ -557,29 +548,19 @@
             const btn = document.getElementById("pause-btn");
             btn.innerText = isPaused ? "再開" : "一時停止";
 
-            // 一時停止したときはスリープ防止を一旦解除し、再開したら再び有効化する
             if (isPaused) {
-                releaseWakeLock();
+                stopKeepAwake();
             } else {
-                requestWakeLock();
+                startKeepAwake();
             }
         }
 
         function stopWorkout() {
             if (timerId) clearInterval(timerId);
-            releaseWakeLock();
+            stopKeepAwake();
             document.getElementById("timer-screen").style.display = "none";
             document.getElementById("setup-screen").style.display = "block";
         }
-
-        // ページが切り替わったり最小化されたときにWakeLockを自動解除・復帰
-        document.addEventListener('visibilitychange', async () => {
-            if (wakeLock !== null && document.visibilityState === 'visible') {
-                if (document.getElementById("timer-screen").style.display === "block" && !isPaused) {
-                    await requestWakeLock();
-                }
-            }
-        });
     </script>
 </body>
 </html>
