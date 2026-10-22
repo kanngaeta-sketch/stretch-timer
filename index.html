@@ -217,6 +217,12 @@
             border: 1px solid var(--border-color);
             text-align: left;
         }
+
+        .wakelock-status {
+            font-size: 0.8rem;
+            color: var(--success-color);
+            margin-top: 12px;
+        }
     </style>
 </head>
 <body>
@@ -268,6 +274,7 @@
             <div class="next-preview" id="next-preview">
                 次: 休憩 (5秒)
             </div>
+            <div class="wakelock-status" id="wakelock-status"></div>
         </div>
     </div>
 
@@ -291,6 +298,7 @@
         let timeLeft = 0;
         let timerId = null;
         let isPaused = false;
+        let wakeLock = null;
 
         // 初期化
         window.onload = function() {
@@ -358,7 +366,37 @@
             }
         }
 
-        function startWorkout() {
+        // スリープ防止（Wake Lock API）の有効化
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    document.getElementById("wakelock-status").innerText = "💡 画面スリープ防止：有効";
+                    
+                    // ページがバックグラウンドに隠れたりした場合のイベント
+                    wakeLock.addEventListener('release', () => {
+                        document.getElementById("wakelock-status").innerText = "";
+                    });
+                } catch (err) {
+                    console.log(`${err.name}, ${err.message}`);
+                }
+            }
+        }
+
+        // スリープ防止の解除
+        async function releaseWakeLock() {
+            if (wakeLock !== null) {
+                try {
+                    await wakeLock.release();
+                    wakeLock = null;
+                } catch (err) {
+                    console.log(`${err.name}, ${err.message}`);
+                }
+            }
+            document.getElementById("wakelock-status").innerText = "";
+        }
+
+        async function startWorkout() {
             // 入力値の取得
             totalRounds = parseInt(document.getElementById("rounds-input").value) || 1;
             intervalTime = parseInt(document.getElementById("interval-input").value) || 0;
@@ -392,6 +430,9 @@
 
             setupCurrentStep();
             runTimer();
+
+            // スリープ防止をリクエスト
+            await requestWakeLock();
         }
 
         function setupCurrentStep() {
@@ -515,13 +556,42 @@
             isPaused = !isPaused;
             const btn = document.getElementById("pause-btn");
             btn.innerText = isPaused ? "再開" : "一時停止";
+
+            // 一時停止したときはスリープ防止を一旦解除し、再開したら再び有効化する
+            if (isPaused) {
+                releaseWakeLock();
+            } else {
+                requestWakeLock();
+            }
         }
 
         function stopWorkout() {
             if (timerId) clearInterval(timerId);
+            releaseWakeLock();
             document.getElementById("timer-screen").style.display = "none";
             document.getElementById("setup-screen").style.display = "block";
         }
+
+        // ページが切り替わったり最小化されたときにWakeLockを自動解除・復帰
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                if (document.getElementById("timer-screen").style.display === "block" && !isPaused) {
+                    await requestWakeLock();
+                }
+            }
+        });
     </script>
 </body>
 </html>
+```
+
+eof
+
+---
+
+### この改善のポイント
+* **スリープ防止機能（Wake Lock）の追加**：タイマーがスタートすると自動的に画面が消えない状態になり、画面下部に「💡 画面スリープ防止：有効」と表示されます。
+* **一時停止や終了時の配慮**：「一時停止」ボタンを押したり「中止」したりすると自動でスリープ防止が解除されるため、スマホのバッテリーを無駄に消費しません。
+* **対応環境**：現代のほとんどのスマホ（iPhone / Android）のモダンなブラウザ（SafariやChromeなど）で動作します。
+
+GitHubにこのコードを反映させてから、スマホのホーム画面のアイコンからもう一度試してみてください！これでストレッチ中に画面が暗くなる心配がなくなりますよ。
