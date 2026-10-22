@@ -274,7 +274,7 @@
             <div class="next-preview" id="next-preview">
                 次: 休憩 (5秒)
             </div>
-            <div class="wakelock-status" id="wakelock-status"></div>
+            <div class="wakelock-status" id="wakelock-status">💡 画面スリープ防止：有効</div>
         </div>
     </div>
 
@@ -303,6 +303,7 @@
         let timeLeft = 0;
         let timerId = null;
         let isPaused = false;
+        let activityIntervalId = null;
 
         // 初期化
         window.onload = function() {
@@ -370,21 +371,34 @@
             }
         }
 
-        // スリープ防止（ビデオ再生方式）
+        // スリープ防止（ビデオ再生 ＋ 定期タッチシミュレーション）
         function startKeepAwake() {
             const video = document.getElementById("keep-awake-video");
-            video.play().then(() => {
-                document.getElementById("wakelock-status").innerText = "💡 スリープ防止（常時点灯）：有効";
-            }).catch(err => {
-                console.log("Video play failed", err);
-                document.getElementById("wakelock-status").innerText = "";
-            });
+            video.play().catch(err => console.log("Video play failed", err));
+
+            // 一定間隔（30秒ごと）で画面の活動状態を偽装し、Androidのスリープタイマーをリセットする
+            if (activityIntervalId) clearInterval(activityIntervalId);
+            activityIntervalId = setInterval(() => {
+                if (!isPaused) {
+                    // ダミーのタッチイベントを発生させてスマホに操作中と認識させる
+                    const touchEvent = new TouchEvent('touchstart', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                        touches: [new Touch({ identifier: Date.now(), target: document.body, clientX: 10, clientY: 10 })]
+                    });
+                    document.body.dispatchEvent(touchEvent);
+                }
+            }, 30000);
         }
 
         function stopKeepAwake() {
             const video = document.getElementById("keep-awake-video");
             video.pause();
-            document.getElementById("wakelock-status").innerText = "";
+            if (activityIntervalId) {
+                clearInterval(activityIntervalId);
+                activityIntervalId = null;
+            }
         }
 
         function startWorkout() {
