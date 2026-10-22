@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ストレッチタイマー</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --text-muted: #888888;
+            --accent-color: #bb86fc;
+            --accent-hover: #3700b3;
+            --warning-color: #cf6679;
+            --success-color: #03dac6;
+            --border-color: #2c2c2c;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            text-align: center;
+            margin-bottom: 20px;
+            color: var(--text-color);
+            letter-spacing: 0.05em;
+        }
+
+        .section {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* 設定フォーム */
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        input[type="text"], input[type="number"] {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        input[type="text"] {
+            flex: 1;
+        }
+
+        input[type="number"] {
+            width: 70px;
+            text-align: center;
+        }
+
+        .unit {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background-color: var(--accent-color);
+            color: #121212;
+        }
+
+        .btn-primary:hover {
+            background-color: #9965f4;
+        }
+
+        .btn-secondary {
+            background-color: #2c2c2c;
+            color: var(--text-color);
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background-color: #3c3c3c;
+        }
+
+        .btn-danger {
+            background-color: var(--warning-color);
+            color: #121212;
+        }
+
+        .btn-danger:hover {
+            background-color: #b54f63;
+        }
+
+        /* タイマー画面 */
+        #timer-screen {
+            display: none;
+            text-align: center;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .status-pose {
+            background-color: rgba(3, 218, 198, 0.15);
+            color: var(--success-color);
+            border: 1px solid var(--success-color);
+        }
+
+        .status-interval {
+            background-color: rgba(187, 134, 252, 0.15);
+            color: var(--accent-color);
+            border: 1px solid var(--accent-color);
+        }
+
+        .current-pose-name {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            min-height: 2.2rem;
+        }
+
+        .round-info {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin-bottom: 25px;
+        }
+
+        .time-display {
+            font-size: 5rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            margin-bottom: 30px;
+            letter-spacing: -0.02em;
+        }
+
+        .time-display.countdown-warning {
+            color: var(--warning-color);
+            animation: pulse 0.5s infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.05); }
+        }
+
+        .controls-flex {
+            display: flex;
+            gap: 10px;
+        }
+
+        .next-preview {
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.02);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>ストレッチタイマー</h1>
+
+        <!-- 設定画面 -->
+        <div id="setup-screen">
+            <div class="section">
+                <div class="section-title">全体設定</div>
+                <div class="input-group" style="justify-content: space-between;">
+                    <span style="font-size: 0.95rem;">ラウンド数（セット数）</span>
+                    <input type="number" id="rounds-input" value="3" min="1" max="10">
+                </div>
+                <div class="input-group" style="justify-content: space-between;">
+                    <span style="font-size: 0.95rem;">ポーズ間インターバル</span>
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <input type="number" id="interval-input" value="5" min="0" max="60">
+                        <span class="unit">秒</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">ポーズメニュー</div>
+                <div id="pose-list">
+                    <!-- JavaScriptで動的に生成 -->
+                </div>
+                <button class="btn btn-secondary" onclick="addPoseInput()">＋ ポーズを追加</button>
+            </div>
+
+            <button class="btn btn-primary" onclick="startWorkout()" style="margin-top: 10px;">タイマー開始</button>
+        </div>
+
+        <!-- タイマー実行画面 -->
+        <div id="timer-screen">
+            <div id="status-badge" class="status-badge status-pose">ストレッチ中</div>
+            <div class="round-info" id="round-display">ラウンド 1 / 3</div>
+            
+            <div class="current-pose-name" id="pose-name-display">前屈ストレッチ</div>
+            <div class="time-display" id="time-display">30</div>
+
+            <div class="controls-flex">
+                <button class="btn btn-secondary" id="pause-btn" onclick="togglePause()">一時停止</button>
+                <button class="btn btn-danger" onclick="stopWorkout()">中止</button>
+            </div>
+
+            <div class="next-preview" id="next-preview">
+                次: 休憩 (5秒)
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // デフォルトのメニューデータ
+        let defaultPoses = [
+            { name: "首のストレッチ", duration: 20 },
+            { name: "肩回し・肩甲骨", duration: 30 },
+            { name: "前屈ストレッチ", duration: 30 },
+            { name: "開脚ストレッチ", duration: 30 },
+            { name: "お尻のストレッチ", duration: 30 }
+        ];
+
+        let poses = [];
+        let totalRounds = 3;
+        let intervalTime = 5;
+
+        let currentRound = 1;
+        let currentIndex = 0;
+        let isInterval = false;
+        let timeLeft = 0;
+        let timerId = null;
+        let isPaused = false;
+
+        // 初期化
+        window.onload = function() {
+            renderPoseInputs();
+        };
+
+        function renderPoseInputs() {
+            const container = document.getElementById("pose-list");
+            container.innerHTML = "";
+            defaultPoses.forEach((pose, index) => {
+                const div = document.createElement("div");
+                div.className = "input-group";
+                div.innerHTML = `
+                    <input type="text" value="${pose.name}" class="pose-name-input" placeholder="ポーズ名">
+                    <input type="number" value="${pose.duration}" class="pose-duration-input" min="1" max="600">
+                    <span class="unit">秒</span>
+                    <button type="button" onclick="removePoseInput(this)" style="background:none; border:none; color:var(--warning-color); cursor:pointer; font-size:1.2rem; padding:0 5px;">&times;</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function addPoseInput() {
+            const container = document.getElementById("pose-list");
+            const div = document.createElement("div");
+            div.className = "input-group";
+            div.innerHTML = `
+                <input type="text" value="新しいポーズ" class="pose-name-input" placeholder="ポーズ名">
+                <input type="number" value="30" class="pose-duration-input" min="1" max="600">
+                <span class="unit">秒</span>
+                <button type="button" onclick="removePoseInput(this)" style="background:none; border:none; color:var(--warning-color); cursor:pointer; font-size:1.2rem; padding:0 5px;">&times;</button>
+            `;
+            container.appendChild(div);
+        }
+
+        function removePoseInput(btn) {
+            const items = document.querySelectorAll("#pose-list .input-group");
+            if (items.length <= 1) {
+                alert("ポーズは少なくとも1つ必要です。");
+                return;
+            }
+            btn.parentElement.remove();
+        }
+
+        // 音声合成（Web Audio API）によるピピッ音
+        function playSound(isHigh = false) {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.value = isHigh ? 880 : 440; // 高音(終了時) or 通常音(カウントダウン)
+
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            } catch (e) {
+                console.log("Audio not supported or blocked");
+            }
+        }
+
+        function startWorkout() {
+            // 入力値の取得
+            totalRounds = parseInt(document.getElementById("rounds-input").value) || 1;
+            intervalTime = parseInt(document.getElementById("interval-input").value) || 0;
+
+            const nameInputs = document.querySelectorAll(".pose-name-input");
+            const durationInputs = document.querySelectorAll(".pose-duration-input");
+
+            poses = [];
+            for (let i = 0; i < nameInputs.length; i++) {
+                poses.push({
+                    name: nameInputs[i].value || `ポーズ ${i+1}`,
+                    duration: parseInt(durationInputs[i].value) || 30
+                });
+            }
+
+            if (poses.length === 0) {
+                alert("ポーズを追加してください。");
+                return;
+            }
+
+            // 状態リセット
+            currentRound = 1;
+            currentIndex = 0;
+            isInterval = false;
+            isPaused = false;
+            document.getElementById("pause-btn").innerText = "一時停止";
+
+            // 画面切り替え
+            document.getElementById("setup-screen").style.display = "none";
+            document.getElementById("timer-screen").style.display = "block";
+
+            setupCurrentStep();
+            runTimer();
+        }
+
+        function setupCurrentStep() {
+            const badge = document.getElementById("status-badge");
+            const poseNameDisplay = document.getElementById("pose-name-display");
+            const roundDisplay = document.getElementById("round-display");
+            const nextPreview = document.getElementById("next-preview");
+
+            roundDisplay.innerText = `ラウンド ${currentRound} / ${totalRounds}`;
+
+            if (isInterval) {
+                badge.className = "status-badge status-interval";
+                badge.innerText = "インターバル（休憩）";
+                poseNameDisplay.innerText = "次の準備";
+                timeLeft = intervalTime;
+
+                // 次のポーズ予測
+                let nextIdx = currentIndex + 1;
+                let nextRound = currentRound;
+                if (nextIdx >= poses.length) {
+                    nextIdx = 0;
+                    nextRound++;
+                }
+                if (nextRound <= totalRounds) {
+                    nextPreview.innerText = `次: ${poses[nextIdx].name} (${poses[nextIdx].duration}秒)`;
+                } else {
+                    nextPreview.innerText = `次: まもなく終了します`;
+                }
+            } else {
+                badge.className = "status-badge status-pose";
+                badge.innerText = "ストレッチ中";
+                poseNameDisplay.innerText = poses[currentIndex].name;
+                timeLeft = poses[currentIndex].duration;
+
+                // 次のプレビュー
+                if (intervalTime > 0) {
+                    nextPreview.innerText = `次: インターバル (${intervalTime}秒)`;
+                } else {
+                    let nextIdx = currentIndex + 1;
+                    if (nextIdx < poses.length) {
+                        nextPreview.innerText = `次: ${poses[nextIdx].name} (${poses[nextIdx].duration}秒)`;
+                    } else if (currentRound < totalRounds) {
+                        nextPreview.innerText = `次: ラウンド ${currentRound + 1} へ`;
+                    } else {
+                        nextPreview.innerText = `次: ラストポーズ`;
+                    }
+                }
+            }
+            updateTimeDisplay();
+        }
+
+        function runTimer() {
+            if (timerId) clearInterval(timerId);
+
+            timerId = setInterval(() => {
+                if (isPaused) return;
+
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    // 終盤3秒間のカウントダウン音＆表示演出
+                    if (timeLeft > 0 && timeLeft <= 3) {
+                        playSound(false);
+                    } else if (timeLeft === 0) {
+                        playSound(true);
+                    }
+                    updateTimeDisplay();
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerId);
+                    proceedNext();
+                }
+            }, 1000);
+        }
+
+        function updateTimeDisplay() {
+            const display = document.getElementById("time-display");
+            display.innerText = timeLeft;
+
+            if (timeLeft <= 3 && timeLeft > 0) {
+                display.classList.add("countdown-warning");
+            } else {
+                display.classList.remove("countdown-warning");
+            }
+        }
+
+        function proceedNext() {
+            if (isInterval) {
+                // インターバル終了 → 次のポーズへ
+                isInterval = false;
+                currentIndex++;
+                if (currentIndex >= poses.length) {
+                    currentIndex = 0;
+                    currentRound++;
+                }
+            } else {
+                // ポーズ終了
+                if (intervalTime > 0 && !(currentIndex === poses.length - 1 && currentRound === totalRounds)) {
+                    isInterval = true;
+                } else {
+                    currentIndex++;
+                    if (currentIndex >= poses.length) {
+                        currentIndex = 0;
+                        currentRound++;
+                    }
+                }
+            }
+
+            // 全ラウンド終了チェック
+            if (currentRound > totalRounds) {
+                alert("お疲れ様でした！ストレッチが完了しました。");
+                stopWorkout();
+                return;
+            }
+
+            setupCurrentStep();
+            runTimer();
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const btn = document.getElementById("pause-btn");
+            btn.innerText = isPaused ? "再開" : "一時停止";
+        }
+
+        function stopWorkout() {
+            if (timerId) clearInterval(timerId);
+            document.getElementById("timer-screen").style.display = "none";
+            document.getElementById("setup-screen").style.display = "block";
+        }
+    </script>
+</body>
+</html>
