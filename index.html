@@ -268,8 +268,17 @@
             <div class="next-preview" id="next-preview">
                 次: 休憩 (5秒)
             </div>
+            
+            <div style="margin-top: 15px; font-size: 0.8rem; color: var(--accent-color);">
+                🔊 音声案内・バックグラウンド動作対応
+            </div>
         </div>
     </div>
+
+    <!-- 音声維持用の非表示オーディオ要素（スリープ時の停止を防ぐブラウザハック） -->
+    <audio id="keep-alive-audio" loop style="display:none;">
+        <source src="data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" type="audio/wav">
+    </audio>
 
     <script>
         // デフォルトのメニューデータ
@@ -339,10 +348,10 @@
         function speakText(text) {
             try {
                 if ('speechSynthesis' in window) {
-                    window.speechSynthesis.cancel(); // 喋りかけが溜まらないようにリセット
+                    window.speechSynthesis.cancel();
                     const utterance = new SpeechSynthesisUtterance(text);
                     utterance.lang = 'ja-JP';
-                    utterance.rate = 1.1; // 少しだけキビキビ喋る速度
+                    utterance.rate = 1.1;
                     window.speechSynthesis.speak(utterance);
                 }
             } catch (e) {
@@ -370,6 +379,22 @@
                 osc.stop(audioCtx.currentTime + 0.3);
             } catch (e) {
                 console.log("Audio not supported or blocked");
+            }
+        }
+
+        // バックグラウンドでも動作を維持するためのオーディオ制御
+        function startKeepAliveAudio() {
+            const audio = document.getElementById("keep-alive-audio");
+            if (audio) {
+                audio.play().catch(e => console.log("Keep-alive audio prevented", e));
+            }
+        }
+
+        function stopKeepAliveAudio() {
+            const audio = document.getElementById("keep-alive-audio");
+            if (audio) {
+                audio.pause();
+                audio.currentTime = 0;
             }
         }
 
@@ -401,6 +426,9 @@
 
             document.getElementById("setup-screen").style.display = "none";
             document.getElementById("timer-screen").style.display = "block";
+
+            // タイマー開始時にバックグラウンド維持用オーディオを再生（ユーザーのボタンタップをトリガーに動作）
+            startKeepAliveAudio();
 
             setupCurrentStep();
             runTimer();
@@ -439,7 +467,6 @@
                 poseNameDisplay.innerText = poses[currentIndex].name;
                 timeLeft = poses[currentIndex].duration;
 
-                // ポーズ名と秒数を音声で案内
                 speakText(`${poses[currentIndex].name}、${timeLeft}秒`);
 
                 if (intervalTime > 0) {
@@ -468,7 +495,7 @@
                     timeLeft--;
                     if (timeLeft > 0 && timeLeft <= 3) {
                         playSound(false);
-                        speakText(String(timeLeft)); // 終盤3秒も音声でカウント
+                        speakText(String(timeLeft));
                     } else if (timeLeft === 0) {
                         playSound(true);
                     }
@@ -530,14 +557,21 @@
             btn.innerText = isPaused ? "再開" : "一時停止";
             if (isPaused) {
                 speakText("一時停止");
+                // 一時停止中はオーディオを止める
+                const audio = document.getElementById("keep-alive-audio");
+                if (audio) audio.pause();
             } else {
                 speakText("再開");
+                // 再開時にオーディオを再開
+                const audio = document.getElementById("keep-alive-audio");
+                if (audio) audio.play().catch(e => {});
             }
         }
 
         function stopWorkout() {
             if (timerId) clearInterval(timerId);
             window.speechSynthesis.cancel();
+            stopKeepAliveAudio();
             document.getElementById("timer-screen").style.display = "none";
             document.getElementById("setup-screen").style.display = "block";
         }
