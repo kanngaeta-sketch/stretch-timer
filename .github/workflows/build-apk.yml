@@ -1,0 +1,76 @@
+name: Build Android APK
+
+on:
+push:
+branches: [ "main" ]
+workflow_dispatch:
+
+jobs:
+build:
+runs-on: ubuntu-latest
+
+steps:
+  - name: リポジトリのコードを取得
+    uses: actions/checkout@v4
+
+  - name: Node.js のセットアップ
+    uses: actions/setup-node@v4
+    with:
+      node-version: '20'
+
+  - name: Java JDK 17 のセットアップ (Androidビルド用)
+    uses: actions/setup-java@v4
+    with:
+      distribution: 'temurin'
+      java-version: '17'
+
+  - name: Capacitorプロジェクトの自動構築とネイティブ設定
+    run: |
+      # Webファイル格納用のフォルダを作成してindex.htmlをコピー
+      mkdir -p www
+      cp index.html www/
+
+      # Capacitorとネイティブ音声読み上げプラグインをインストール
+      npm init -y
+      npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor-community/text-to-speech
+
+      # Capacitorの初期設定
+      npx cap init "ストレッチタイマー" "com.example.stretchtimer" --web-dir www
+
+      # Androidプラットフォームの追加
+      npx cap add android
+
+      # 【重要】AndroidのMainActivityに「画面の常時点灯(FLAG_KEEP_SCREEN_ON)」を直接埋め込む
+      ACTIVITY_PATH="android/app/src/main/java/com/example/stretchtimer/MainActivity.java"
+      if [ -f "$ACTIVITY_PATH" ]; then
+        cat << 'EOF' > "$ACTIVITY_PATH"
+      package com.example.stretchtimer;
+
+      import android.os.Bundle;
+      import android.view.WindowManager;
+      import com.getcapacitor.BridgeActivity;
+
+      public class MainActivity extends BridgeActivity {
+          @Override
+          protected void onCreate(Bundle savedInstanceState) {
+              super.onCreate(savedInstanceState);
+              // アプリ起動中はOSレベルで画面スリープを完全に防止する
+              getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+          }
+      }
+      EOF
+      fi
+
+      npx cap sync
+
+  - name: Android APK のビルド実行
+    run: |
+      cd android
+      chmod +x gradlew
+      ./gradlew assembleDebug
+
+  - name: 完成したAPKファイルを保存
+    uses: actions/upload-artifact@v4
+    with:
+      name: stretch-timer-apk
+      path: android/app/build/outputs/apk/debug/app-debug.apk
