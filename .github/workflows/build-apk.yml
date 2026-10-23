@@ -1,54 +1,54 @@
 name: Build Android APK
 
 on:
-push:
-branches: [ "main" ]
-workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
-build:
-runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
 
-steps:
-  - name: Checkout repository
-    uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  - name: Setup Node.js
-    uses: actions/setup-node@v4
-    with:
-      node-version: '22'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-  - name: Setup Java JDK 21
-    uses: actions/setup-java@v4
-    with:
-      distribution: 'temurin'
-      java-version: '21'
+      - name: Setup Java JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
 
-  - name: Setup Capacitor and Android Project
-    run: |
-      mkdir -p www
-      cp index.html www/
-      npm init -y
-      npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor-community/text-to-speech@6
-      npx cap init "StretchTimer" "com.example.stretchtimer" --web-dir www
-      npx cap add android
-      
-      ACTIVITY_PATH="android/app/src/main/java/com/example/stretchtimer/MainActivity.java"
-      if [ -f "$ACTIVITY_PATH" ]; then
-        sed -i 's/import android.os.Bundle;/import android.os.Bundle;\nimport android.view.WindowManager;/' "$ACTIVITY_PATH"
-        sed -i 's/super.onCreate(savedInstanceState);/super.onCreate(savedInstanceState);\n        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);/' "$ACTIVITY_PATH"
-      fi
-      
-      npx cap sync
+      - name: Setup Capacitor and Android Project
+        run: |
+          mkdir -p www
+          cp index.html www/
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor-community/text-to-speech@6
+          npx cap init "StretchTimer" "com.example.stretchtimer" --web-dir www
+          npx cap add android
+          
+          ACTIVITY_PATH="android/app/src/main/java/com/example/stretchtimer/MainActivity.java"
+          if [ -f "$ACTIVITY_PATH" ]; then
+            sed -i 's/import android.os.Bundle;/import android.os.Bundle;\nimport android.view.WindowManager;/' "$ACTIVITY_PATH"
+            sed -i 's/super.onCreate(savedInstanceState);/super.onCreate(savedInstanceState);\n        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);/' "$ACTIVITY_PATH"
+          fi
+          
+          npx cap sync
 
-  - name: Build Android APK
-    run: |
-      cd android
-      chmod +x gradlew
-      ./gradlew assembleDebug
+      - name: Build Android APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
-  - name: Upload APK Artifact
-    uses: actions/upload-artifact@v4
-    with:
-      name: stretch-timer-apk
-      path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stretch-timer-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
