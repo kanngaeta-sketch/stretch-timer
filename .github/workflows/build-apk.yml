@@ -19,7 +19,7 @@ jobs:
           node-version: '22'
 
       - name: Setup Java JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -27,9 +27,16 @@ jobs:
       - name: Setup Capacitor and Android Project
         run: |
           mkdir -p www
-          cp index.html www/
+          if [ -f "index.html" ]; then
+            cp index.html www/index.html
+          else
+            HTML_FILE=$(find . -maxdepth 1 -name "*.html" | head -n 1)
+            if [ -n "$HTML_FILE" ]; then
+              cp "$HTML_FILE" www/index.html
+            fi
+          fi
           npm init -y
-          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor-community/text-to-speech@6
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor-community/text-to-speech@6 --legacy-peer-deps
           npx cap init "StretchTimer" "com.example.stretchtimer" --web-dir www
           npx cap add android
           
