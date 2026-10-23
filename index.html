@@ -290,14 +290,6 @@
         </div>
     </div>
 
-    <!-- カスタムメッセージモーダル -->
-    <div id="message-modal">
-        <div class="modal-content">
-            <div id="modal-text" class="modal-text">メッセージ</div>
-            <button class="btn btn-primary" onclick="closeModal()">OK</button>
-        </div>
-    </div>
-
     <script>
         // デフォルトのメニューデータ
         let defaultPoses = [
@@ -324,15 +316,6 @@
         window.onload = function() {
             renderPoseInputs();
         };
-
-        function showModal(msg) {
-            document.getElementById("modal-text").innerText = msg;
-            document.getElementById("message-modal").style.display = "flex";
-        }
-
-        function closeModal() {
-            document.getElementById("message-modal").style.display = "none";
-        }
 
         // スリープ防止（Wake Lock API / ネイティブWebViewでも有効）
         async function requestWakeLock() {
