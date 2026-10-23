@@ -10,66 +10,44 @@ build:
 runs-on: ubuntu-latest
 
 steps:
-  - name: リポジトリのコードを取得
+  - name: Checkout repository
     uses: actions/checkout@v4
 
-  - name: Node.js のセットアップ
+  - name: Setup Node.js
     uses: actions/setup-node@v4
     with:
-      node-version: '20'
+      node-version: '22'
 
-  - name: Java JDK 17 のセットアップ (Androidビルド用)
+  - name: Setup Java JDK 21
     uses: actions/setup-java@v4
     with:
       distribution: 'temurin'
-      java-version: '17'
+      java-version: '21'
 
-  - name: Capacitorプロジェクトの自動構築とネイティブ設定
+  - name: Setup Capacitor and Android Project
     run: |
-      # Webファイル格納用のフォルダを作成してindex.htmlをコピー
       mkdir -p www
       cp index.html www/
-
-      # Capacitorとネイティブ音声読み上げプラグインをインストール
       npm init -y
-      npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor-community/text-to-speech
-
-      # Capacitorの初期設定
-      npx cap init "ストレッチタイマー" "com.example.stretchtimer" --web-dir www
-
-      # Androidプラットフォームの追加
+      npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor-community/text-to-speech@6
+      npx cap init "StretchTimer" "com.example.stretchtimer" --web-dir www
       npx cap add android
-
-      # 【重要】AndroidのMainActivityに「画面の常時点灯(FLAG_KEEP_SCREEN_ON)」を直接埋め込む
+      
       ACTIVITY_PATH="android/app/src/main/java/com/example/stretchtimer/MainActivity.java"
       if [ -f "$ACTIVITY_PATH" ]; then
-        cat << 'EOF' > "$ACTIVITY_PATH"
-      package com.example.stretchtimer;
-
-      import android.os.Bundle;
-      import android.view.WindowManager;
-      import com.getcapacitor.BridgeActivity;
-
-      public class MainActivity extends BridgeActivity {
-          @Override
-          protected void onCreate(Bundle savedInstanceState) {
-              super.onCreate(savedInstanceState);
-              // アプリ起動中はOSレベルで画面スリープを完全に防止する
-              getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-          }
-      }
-      EOF
+        sed -i 's/import android.os.Bundle;/import android.os.Bundle;\nimport android.view.WindowManager;/' "$ACTIVITY_PATH"
+        sed -i 's/super.onCreate(savedInstanceState);/super.onCreate(savedInstanceState);\n        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);/' "$ACTIVITY_PATH"
       fi
-
+      
       npx cap sync
 
-  - name: Android APK のビルド実行
+  - name: Build Android APK
     run: |
       cd android
       chmod +x gradlew
       ./gradlew assembleDebug
 
-  - name: 完成したAPKファイルを保存
+  - name: Upload APK Artifact
     uses: actions/upload-artifact@v4
     with:
       name: stretch-timer-apk
