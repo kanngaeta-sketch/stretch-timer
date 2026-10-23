@@ -217,12 +217,27 @@
             border: 1px solid var(--border-color);
             text-align: left;
         }
+
+        /* カスタムメッセージボックス（alertの代替） */
+        .toast-msg {
+            display: none;
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--accent-color);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1>ストレッチタイマー</h1>
+        <div id="toast-msg" class="toast-msg"></div>
 
         <!-- 設定画面 -->
         <div id="setup-screen">
@@ -270,15 +285,18 @@
             </div>
             
             <div style="margin-top: 15px; font-size: 0.8rem; color: var(--accent-color);">
-                🔊 音声案内・バックグラウンド動作対応
+                🔊 音声案内・スリープ防止対応
             </div>
         </div>
     </div>
 
-    <!-- 音声維持用の非表示オーディオ要素（スリープ時の停止を防ぐブラウザハック） -->
-    <audio id="keep-alive-audio" loop style="display:none;">
-        <source src="data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" type="audio/wav">
-    </audio>
+    <!-- カスタムメッセージモーダル -->
+    <div id="message-modal">
+        <div class="modal-content">
+            <div id="modal-text" class="modal-text">メッセージ</div>
+            <button class="btn btn-primary" onclick="closeModal()">OK</button>
+        </div>
+    </div>
 
     <script>
         // デフォルトのメニューデータ
@@ -300,11 +318,40 @@
         let timeLeft = 0;
         let timerId = null;
         let isPaused = false;
+        let wakeLock = null;
 
         // 初期化
         window.onload = function() {
             renderPoseInputs();
         };
+
+        function showModal(msg) {
+            document.getElementById("modal-text").innerText = msg;
+            document.getElementById("message-modal").style.display = "flex";
+        }
+
+        function closeModal() {
+            document.getElementById("message-modal").style.display = "none";
+        }
+
+        // スリープ防止（Wake Lock API / ネイティブWebViewでも有効）
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                } catch (err) {
+                    console.log('Wake Lock error:', err);
+                }
+            }
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release().then(() => {
+                    wakeLock = null;
+                }).catch(e => console.log(e));
+            }
+        }
 
         function renderPoseInputs() {
             const container = document.getElementById("pose-list");
@@ -338,15 +385,38 @@
         function removePoseInput(btn) {
             const items = document.querySelectorAll("#pose-list .input-group");
             if (items.length <= 1) {
-                alert("ポーズは少なくとも1つ必要です。");
+                showMessage("ポーズは少なくとも1つ必要です。");
                 return;
             }
             btn.parentElement.remove();
         }
 
-        // 音声合成（Web Speech API）による読み上げ
+        function showMessage(msg) {
+            const toast = document.getElementById("toast-msg");
+            if (!toast) return;
+            toast.innerText = msg;
+            toast.style.display = "block";
+            setTimeout(() => {
+                toast.style.display = "none";
+            }, 3500);
+        }
+
+        // 音声合成（ネイティブTTSプラグイン ＆ Web Speech API 両対応）
         function speakText(text) {
             try {
+                // CapacitorのネイティブTTSプラグインが存在する場合はそちらを優先（Androidアプリ用）
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.TextToSpeech) {
+                    window.Capacitor.Plugins.TextToSpeech.speak({
+                        text: text,
+                        lang: 'ja-JP',
+                        rate: 1.1,
+                        pitch: 1.0,
+                        volume: 1.0,
+                        category: 'ambient'
+                    }).catch(e => console.log("Native TTS error:", e));
+                    return;
+                }
+                // 通常のブラウザ用
                 if ('speechSynthesis' in window) {
                     window.speechSynthesis.cancel();
                     const utterance = new SpeechSynthesisUtterance(text);
@@ -382,22 +452,6 @@
             }
         }
 
-        // バックグラウンドでも動作を維持するためのオーディオ制御
-        function startKeepAliveAudio() {
-            const audio = document.getElementById("keep-alive-audio");
-            if (audio) {
-                audio.play().catch(e => console.log("Keep-alive audio prevented", e));
-            }
-        }
-
-        function stopKeepAliveAudio() {
-            const audio = document.getElementById("keep-alive-audio");
-            if (audio) {
-                audio.pause();
-                audio.currentTime = 0;
-            }
-        }
-
         function startWorkout() {
             totalRounds = parseInt(document.getElementById("rounds-input").value) || 1;
             intervalTime = parseInt(document.getElementById("interval-input").value) || 0;
@@ -414,7 +468,7 @@
             }
 
             if (poses.length === 0) {
-                alert("ポーズを追加してください。");
+                showMessage("ポーズを追加してください。");
                 return;
             }
 
@@ -427,8 +481,7 @@
             document.getElementById("setup-screen").style.display = "none";
             document.getElementById("timer-screen").style.display = "block";
 
-            // タイマー開始時にバックグラウンド維持用オーディオを再生（ユーザーのボタンタップをトリガーに動作）
-            startKeepAliveAudio();
+            requestWakeLock();
 
             setupCurrentStep();
             runTimer();
@@ -542,7 +595,7 @@
 
             if (currentRound > totalRounds) {
                 speakText("お疲れ様でした。ストレッチが完了しました。");
-                alert("お疲れ様でした！ストレッチが完了しました。");
+                showMessage("🎉 お疲れ様でした！ストレッチが完了しました。");
                 stopWorkout();
                 return;
             }
@@ -557,21 +610,19 @@
             btn.innerText = isPaused ? "再開" : "一時停止";
             if (isPaused) {
                 speakText("一時停止");
-                // 一時停止中はオーディオを止める
-                const audio = document.getElementById("keep-alive-audio");
-                if (audio) audio.pause();
+                releaseWakeLock();
             } else {
                 speakText("再開");
-                // 再開時にオーディオを再開
-                const audio = document.getElementById("keep-alive-audio");
-                if (audio) audio.play().catch(e => {});
+                requestWakeLock();
             }
         }
 
         function stopWorkout() {
             if (timerId) clearInterval(timerId);
-            window.speechSynthesis.cancel();
-            stopKeepAliveAudio();
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            releaseWakeLock();
             document.getElementById("timer-screen").style.display = "none";
             document.getElementById("setup-screen").style.display = "block";
         }
