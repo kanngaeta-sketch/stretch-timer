@@ -62,6 +62,9 @@
             margin-bottom: 8px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         /* 設定フォーム */
@@ -142,6 +145,18 @@
             background-color: #b54f63;
         }
 
+        .btn-text {
+            background: none;
+            border: none;
+            color: var(--accent-color);
+            font-size: 0.8rem;
+            cursor: pointer;
+            padding: 0;
+        }
+        .btn-text:hover {
+            text-decoration: underline;
+        }
+
         /* タイマー画面 */
         #timer-screen {
             display: none;
@@ -218,18 +233,16 @@
             text-align: left;
         }
 
-        /* カスタムメッセージボックス（alertの代替） */
         .toast-msg {
             display: none;
             background-color: var(--card-bg);
             color: var(--text-color);
             border: 1px solid var(--accent-color);
-            padding: 12px 16px;
+            padding: 10px;
             border-radius: 8px;
             margin-bottom: 15px;
             text-align: center;
-            font-size: 0.9rem;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            font-size: 0.85rem;
         }
     </style>
 </head>
@@ -257,7 +270,10 @@
             </div>
 
             <div class="section">
-                <div class="section-title">ポーズメニュー</div>
+                <div class="section-title">
+                    <span>ポーズメニュー</span>
+                    <button class="btn-text" onclick="resetDefaultPoses()">初期設定に戻す</button>
+                </div>
                 <div id="pose-list">
                     <!-- JavaScriptで動的に生成 -->
                 </div>
@@ -285,14 +301,14 @@
             </div>
             
             <div style="margin-top: 15px; font-size: 0.8rem; color: var(--accent-color);">
-                🔊 音声案内・スリープ防止対応
+                🔊 音声案内対応
             </div>
         </div>
     </div>
 
     <script>
         // デフォルトのメニューデータ
-        let defaultPoses = [
+        const defaultPoses = [
             { name: "首のストレッチ", duration: 20 },
             { name: "肩回し・肩甲骨", duration: 30 },
             { name: "前屈ストレッチ", duration: 30 },
@@ -312,34 +328,86 @@
         let isPaused = false;
         let wakeLock = null;
 
-        // 初期化
+        // 初期化（保存された設定があれば読み込む）
         window.onload = function() {
+            loadSettings();
             renderPoseInputs();
         };
 
-        // スリープ防止（Wake Lock API / ネイティブWebViewでも有効）
-        async function requestWakeLock() {
-            if ('wakeLock' in navigator) {
+        function showToast(msg) {
+            const toast = document.getElementById("toast-msg");
+            if (!toast) return;
+            toast.innerText = msg;
+            toast.style.display = "block";
+            setTimeout(() => {
+                toast.style.display = "none";
+            }, 2500);
+        }
+
+        // LocalStorageに設定を保存
+        function saveSettings() {
+            const nameInputs = document.querySelectorAll(".pose-name-input");
+            const durationInputs = document.querySelectorAll(".pose-duration-input");
+            
+            const savedPoses = [];
+            for (let i = 0; i < nameInputs.length; i++) {
+                savedPoses.push({
+                    name: nameInputs[i].value || `ポーズ ${i+1}`,
+                    duration: parseInt(durationInputs[i].value) || 30
+                });
+            }
+
+            const rounds = document.getElementById("rounds-input").value;
+            const interval = document.getElementById("interval-input").value;
+
+            localStorage.setItem("stretch_poses", JSON.stringify(savedPoses));
+            localStorage.setItem("stretch_rounds", rounds);
+            localStorage.setItem("stretch_interval", interval);
+            
+            showToast("💾 メニューと設定を保存しました！");
+        }
+
+        // LocalStorageから設定を読み込み
+        function loadSettings() {
+            const savedPoses = localStorage.getItem("stretch_poses");
+            const savedRounds = localStorage.getItem("stretch_rounds");
+            const savedInterval = localStorage.getItem("stretch_interval");
+
+            if (savedPoses) {
                 try {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                } catch (err) {
-                    console.log('Wake Lock error:', err);
+                    poses = JSON.parse(savedPoses);
+                } catch(e) {
+                    poses = defaultPoses;
                 }
+            } else {
+                poses = defaultPoses;
+            }
+
+            if (savedRounds) {
+                document.getElementById("rounds-input").value = savedRounds;
+            }
+            if (savedInterval) {
+                document.getElementById("interval-input").value = savedInterval;
             }
         }
 
-        function releaseWakeLock() {
-            if (wakeLock !== null) {
-                wakeLock.release().then(() => {
-                    wakeLock = null;
-                }).catch(e => console.log(e));
+        function resetDefaultPoses() {
+            if (confirm("メニューを初期設定に戻しますか？")) {
+                localStorage.removeItem("stretch_poses");
+                localStorage.removeItem("stretch_rounds");
+                localStorage.removeItem("stretch_interval");
+                document.getElementById("rounds-input").value = 3;
+                document.getElementById("interval-input").value = 5;
+                poses = defaultPoses;
+                renderPoseInputs();
+                showToast("🔄 初期設定に戻しました");
             }
         }
 
         function renderPoseInputs() {
             const container = document.getElementById("pose-list");
             container.innerHTML = "";
-            defaultPoses.forEach((pose, index) => {
+            poses.forEach((pose, index) => {
                 const div = document.createElement("div");
                 div.className = "input-group";
                 div.innerHTML = `
@@ -368,26 +436,15 @@
         function removePoseInput(btn) {
             const items = document.querySelectorAll("#pose-list .input-group");
             if (items.length <= 1) {
-                showMessage("ポーズは少なくとも1つ必要です。");
+                showToast("⚠️ ポーズは少なくとも1つ必要です。");
                 return;
             }
             btn.parentElement.remove();
         }
 
-        function showMessage(msg) {
-            const toast = document.getElementById("toast-msg");
-            if (!toast) return;
-            toast.innerText = msg;
-            toast.style.display = "block";
-            setTimeout(() => {
-                toast.style.display = "none";
-            }, 3500);
-        }
-
-        // 音声合成（ネイティブTTSプラグイン ＆ Web Speech API 両対応）
+        // ネイティブTTSプラグイン ＆ Web Speech API 両対応
         function speakText(text) {
             try {
-                // CapacitorのネイティブTTSプラグインが存在する場合はそちらを優先（Androidアプリ用）
                 if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.TextToSpeech) {
                     window.Capacitor.Plugins.TextToSpeech.speak({
                         text: text,
@@ -399,7 +456,6 @@
                     }).catch(e => console.log("Native TTS error:", e));
                     return;
                 }
-                // 通常のブラウザ用
                 if ('speechSynthesis' in window) {
                     window.speechSynthesis.cancel();
                     const utterance = new SpeechSynthesisUtterance(text);
@@ -412,7 +468,6 @@
             }
         }
 
-        // 電子音（ピピッ）
         function playSound(isHigh = false) {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -431,11 +486,14 @@
                 osc.start();
                 osc.stop(audioCtx.currentTime + 0.3);
             } catch (e) {
-                console.log("Audio not supported or blocked");
+                console.log("Audio not supported");
             }
         }
 
         function startWorkout() {
+            // タイマー開始時に自動保存を実行
+            saveSettings();
+
             totalRounds = parseInt(document.getElementById("rounds-input").value) || 1;
             intervalTime = parseInt(document.getElementById("interval-input").value) || 0;
 
@@ -451,7 +509,7 @@
             }
 
             if (poses.length === 0) {
-                showMessage("ポーズを追加してください。");
+                showToast("⚠️ ポーズを追加してください。");
                 return;
             }
 
@@ -463,8 +521,6 @@
 
             document.getElementById("setup-screen").style.display = "none";
             document.getElementById("timer-screen").style.display = "block";
-
-            requestWakeLock();
 
             setupCurrentStep();
             runTimer();
@@ -578,7 +634,6 @@
 
             if (currentRound > totalRounds) {
                 speakText("お疲れ様でした。ストレッチが完了しました。");
-                showMessage("🎉 お疲れ様でした！ストレッチが完了しました。");
                 stopWorkout();
                 return;
             }
@@ -593,10 +648,8 @@
             btn.innerText = isPaused ? "再開" : "一時停止";
             if (isPaused) {
                 speakText("一時停止");
-                releaseWakeLock();
             } else {
                 speakText("再開");
-                requestWakeLock();
             }
         }
 
@@ -605,7 +658,6 @@
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
             }
-            releaseWakeLock();
             document.getElementById("timer-screen").style.display = "none";
             document.getElementById("setup-screen").style.display = "block";
         }
