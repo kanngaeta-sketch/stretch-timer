@@ -217,12 +217,6 @@
             border: 1px solid var(--border-color);
             text-align: left;
         }
-
-        .wakelock-status {
-            font-size: 0.8rem;
-            color: var(--success-color);
-            margin-top: 12px;
-        }
     </style>
 </head>
 <body>
@@ -274,14 +268,8 @@
             <div class="next-preview" id="next-preview">
                 次: 休憩 (5秒)
             </div>
-            <div class="wakelock-status" id="wakelock-status">💡 画面スリープ防止：有効</div>
         </div>
     </div>
-
-    <!-- 確実に画面スリープを防ぐための隠しビデオ要素 (1x1ピクセル) -->
-    <video id="keep-awake-video" width="1" height="1" autoplay loop muted playsinline style="display:none; position:absolute; pointer-events:none;">
-        <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc29tYXZjMSFhAAAAAZnJlZQAABzxtZGF0AAACrQYF//+EAAEI" type="video/mp4">
-    </video>
 
     <script>
         // デフォルトのメニューデータ
@@ -303,7 +291,6 @@
         let timeLeft = 0;
         let timerId = null;
         let isPaused = false;
-        let activityIntervalId = null;
 
         // 初期化
         window.onload = function() {
@@ -348,7 +335,22 @@
             btn.parentElement.remove();
         }
 
-        // 音声合成（Web Audio API）によるピピッ音
+        // 音声合成（Web Speech API）による読み上げ
+        function speakText(text) {
+            try {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel(); // 喋りかけが溜まらないようにリセット
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'ja-JP';
+                    utterance.rate = 1.1; // 少しだけキビキビ喋る速度
+                    window.speechSynthesis.speak(utterance);
+                }
+            } catch (e) {
+                console.log("Speech synthesis not supported");
+            }
+        }
+
+        // 電子音（ピピッ）
         function playSound(isHigh = false) {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -356,7 +358,7 @@
                 const gain = audioCtx.createGain();
 
                 osc.type = 'sine';
-                osc.frequency.value = isHigh ? 880 : 440; // 高音(終了時) or 通常音(カウントダウン)
+                osc.frequency.value = isHigh ? 880 : 440;
 
                 gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
@@ -371,38 +373,7 @@
             }
         }
 
-        // スリープ防止（ビデオ再生 ＋ 定期タッチシミュレーション）
-        function startKeepAwake() {
-            const video = document.getElementById("keep-awake-video");
-            video.play().catch(err => console.log("Video play failed", err));
-
-            // 一定間隔（30秒ごと）で画面の活動状態を偽装し、Androidのスリープタイマーをリセットする
-            if (activityIntervalId) clearInterval(activityIntervalId);
-            activityIntervalId = setInterval(() => {
-                if (!isPaused) {
-                    // ダミーのタッチイベントを発生させてスマホに操作中と認識させる
-                    const touchEvent = new TouchEvent('touchstart', {
-                        bubbles: true,
-                        cancelable: true,
-                        view: window,
-                        touches: [new Touch({ identifier: Date.now(), target: document.body, clientX: 10, clientY: 10 })]
-                    });
-                    document.body.dispatchEvent(touchEvent);
-                }
-            }, 30000);
-        }
-
-        function stopKeepAwake() {
-            const video = document.getElementById("keep-awake-video");
-            video.pause();
-            if (activityIntervalId) {
-                clearInterval(activityIntervalId);
-                activityIntervalId = null;
-            }
-        }
-
         function startWorkout() {
-            // 入力値の取得
             totalRounds = parseInt(document.getElementById("rounds-input").value) || 1;
             intervalTime = parseInt(document.getElementById("interval-input").value) || 0;
 
@@ -422,22 +393,17 @@
                 return;
             }
 
-            // 状態リセット
             currentRound = 1;
             currentIndex = 0;
             isInterval = false;
             isPaused = false;
             document.getElementById("pause-btn").innerText = "一時停止";
 
-            // 画面切り替え
             document.getElementById("setup-screen").style.display = "none";
             document.getElementById("timer-screen").style.display = "block";
 
             setupCurrentStep();
             runTimer();
-
-            // スリープ防止を有効化
-            startKeepAwake();
         }
 
         function setupCurrentStep() {
@@ -454,7 +420,8 @@
                 poseNameDisplay.innerText = "次の準備";
                 timeLeft = intervalTime;
 
-                // 次のポーズ予測
+                speakText("休憩");
+
                 let nextIdx = currentIndex + 1;
                 let nextRound = currentRound;
                 if (nextIdx >= poses.length) {
@@ -472,7 +439,9 @@
                 poseNameDisplay.innerText = poses[currentIndex].name;
                 timeLeft = poses[currentIndex].duration;
 
-                // 次のプレビュー
+                // ポーズ名と秒数を音声で案内
+                speakText(`${poses[currentIndex].name}、${timeLeft}秒`);
+
                 if (intervalTime > 0) {
                     nextPreview.innerText = `次: インターバル (${intervalTime}秒)`;
                 } else {
@@ -497,9 +466,9 @@
 
                 if (timeLeft > 0) {
                     timeLeft--;
-                    // 終盤3秒間のカウントダウン音＆表示演出
                     if (timeLeft > 0 && timeLeft <= 3) {
                         playSound(false);
+                        speakText(String(timeLeft)); // 終盤3秒も音声でカウント
                     } else if (timeLeft === 0) {
                         playSound(true);
                     }
@@ -526,7 +495,6 @@
 
         function proceedNext() {
             if (isInterval) {
-                // インターバル終了 → 次のポーズへ
                 isInterval = false;
                 currentIndex++;
                 if (currentIndex >= poses.length) {
@@ -534,7 +502,6 @@
                     currentRound++;
                 }
             } else {
-                // ポーズ終了
                 if (intervalTime > 0 && !(currentIndex === poses.length - 1 && currentRound === totalRounds)) {
                     isInterval = true;
                 } else {
@@ -546,8 +513,8 @@
                 }
             }
 
-            // 全ラウンド終了チェック
             if (currentRound > totalRounds) {
+                speakText("お疲れ様でした。ストレッチが完了しました。");
                 alert("お疲れ様でした！ストレッチが完了しました。");
                 stopWorkout();
                 return;
@@ -561,17 +528,16 @@
             isPaused = !isPaused;
             const btn = document.getElementById("pause-btn");
             btn.innerText = isPaused ? "再開" : "一時停止";
-
             if (isPaused) {
-                stopKeepAwake();
+                speakText("一時停止");
             } else {
-                startKeepAwake();
+                speakText("再開");
             }
         }
 
         function stopWorkout() {
             if (timerId) clearInterval(timerId);
-            stopKeepAwake();
+            window.speechSynthesis.cancel();
             document.getElementById("timer-screen").style.display = "none";
             document.getElementById("setup-screen").style.display = "block";
         }
